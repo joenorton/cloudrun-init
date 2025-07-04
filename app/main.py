@@ -81,6 +81,15 @@ def create_app(test_config=None):
     def index():
         return app.send_static_file('index.html')
 
+    # Optional: Serve Firebase test files
+    @app.route('/test/firebase')
+    def firebase_test():
+        return app.send_static_file('../test_firebase_config.html')
+    
+    @app.route('/test/simple')
+    def simple_test():
+        return app.send_static_file('../simple_firebase_test.html')
+
     return app
 
 
