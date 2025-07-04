@@ -29,18 +29,50 @@
             appId: "your-app-id"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        
-        // Make Firebase available globally for the Alpine.js component
-        window.firebaseAuth = {
-            auth,
-            signInWithPopup,
-            signOut,
-            onAuthStateChanged,
-            GoogleAuthProvider
-        };
+        // Check if Firebase config is properly set
+        const isConfigValid = firebaseConfig.apiKey && 
+                             firebaseConfig.apiKey !== "your-api-key" && 
+                             firebaseConfig.projectId && 
+                             firebaseConfig.projectId !== "your-project-id";
+
+        if (!isConfigValid) {
+            console.warn('⚠️ Firebase configuration not set. Please update the firebaseConfig in app/static/index.html with your actual Firebase project settings.');
+            // Create a mock Firebase object for development
+            window.firebaseAuth = {
+                auth: null,
+                signInWithPopup: () => Promise.reject(new Error('Firebase not configured')),
+                signOut: () => Promise.reject(new Error('Firebase not configured')),
+                onAuthStateChanged: () => {},
+                GoogleAuthProvider: class MockProvider {}
+            };
+        } else {
+            try {
+                // Initialize Firebase
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                
+                console.log('✅ Firebase initialized successfully');
+                
+                // Make Firebase available globally for the Alpine.js component
+                window.firebaseAuth = {
+                    auth,
+                    signInWithPopup,
+                    signOut,
+                    onAuthStateChanged,
+                    GoogleAuthProvider
+                };
+            } catch (error) {
+                console.error('❌ Firebase initialization failed:', error);
+                // Create a mock Firebase object on error
+                window.firebaseAuth = {
+                    auth: null,
+                    signInWithPopup: () => Promise.reject(error),
+                    signOut: () => Promise.reject(error),
+                    onAuthStateChanged: () => {},
+                    GoogleAuthProvider: class MockProvider {}
+                };
+            }
+        }
     </script>
     
     <style>
@@ -177,6 +209,12 @@
                 setupAuthListener() {
                     const { auth, onAuthStateChanged } = window.firebaseAuth;
                     
+                    if (!auth) {
+                        console.warn('Firebase auth not available - check configuration');
+                        this.loading = false;
+                        return;
+                    }
+                    
                     // Listen for auth state changes
                     onAuthStateChanged(auth, (user) => {
                         if (user) {
@@ -199,6 +237,11 @@
                     this.authLoading = true;
                     try {
                         const { auth, signInWithPopup, GoogleAuthProvider } = window.firebaseAuth;
+                        
+                        if (!auth) {
+                            throw new Error('Firebase not configured. Please update the Firebase configuration in app/static/index.html');
+                        }
+                        
                         const provider = new GoogleAuthProvider();
                         const result = await signInWithPopup(auth, provider);
                         
