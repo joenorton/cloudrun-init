@@ -26,7 +26,7 @@
 
 ### 4. Update Frontend Configuration
 
-Edit `app/static/index.html` and replace the Firebase configuration:
+Edit `app/static/index.html` and replace the Firebase configuration in the `<script type="module">` section:
 
 ```javascript
 const firebaseConfig = {
@@ -38,6 +38,8 @@ const firebaseConfig = {
     appId: "your-app-id"
 };
 ```
+
+**Note:** The frontend now uses the modern modular Firebase SDK (v9+) with ES6 imports. The configuration is located in the `<script type="module">` block near the top of the file.
 
 ### 5. Set up Service Account (Optional for Local Development)
 
@@ -60,6 +62,7 @@ SECRET_KEY=your-secret-key-here
 2. Go to `http://localhost:5000`
 3. Click "Sign In with Google"
 4. Complete the OAuth flow
+5. Check the browser console for the Firebase ID token
 
 ## Troubleshooting
 
@@ -78,6 +81,13 @@ This means the Firebase token verification failed. Make sure:
 - The service account key is valid
 - The token hasn't expired
 
+### "Module not found" or import errors
+
+The frontend now uses ES6 modules. Make sure:
+- You're using a modern browser that supports ES6 modules
+- The Firebase configuration is in the correct `<script type="module">` block
+- The import URLs are correct and accessible
+
 ## Local Development Without Firebase
 
 For development without Firebase setup:
@@ -95,6 +105,7 @@ Once Firebase is configured:
 2. Test the `/auth/me` endpoint with a valid token
 3. Check that user information is displayed correctly
 4. Test the logout functionality
+5. Verify the Firebase ID token is logged to the console
 
 ## Security Notes
 

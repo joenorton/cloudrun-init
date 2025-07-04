@@ -14,9 +14,34 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Firebase SDK (Modular v9+) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, signOut, onAuthStateChanged, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        
+        // Firebase configuration - replace with your project config
+        const firebaseConfig = {
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        // Make Firebase available globally for the Alpine.js component
+        window.firebaseAuth = {
+            auth,
+            signInWithPopup,
+            signOut,
+            onAuthStateChanged,
+            GoogleAuthProvider
+        };
+    </script>
     
     <style>
         .loading {
@@ -140,21 +165,20 @@
                 },
 
                 initFirebase() {
-                    // Firebase configuration - replace with your project config
-                    const firebaseConfig = {
-                        apiKey: "your-api-key",
-                        authDomain: "your-project.firebaseapp.com",
-                        projectId: "your-project-id",
-                        storageBucket: "your-project.appspot.com",
-                        messagingSenderId: "123456789",
-                        appId: "your-app-id"
-                    };
+                    // Wait for Firebase to be available
+                    if (window.firebaseAuth) {
+                        this.setupAuthListener();
+                    } else {
+                        // Retry after a short delay
+                        setTimeout(() => this.initFirebase(), 100);
+                    }
+                },
 
-                    // Initialize Firebase
-                    firebase.initializeApp(firebaseConfig);
-
+                setupAuthListener() {
+                    const { auth, onAuthStateChanged } = window.firebaseAuth;
+                    
                     // Listen for auth state changes
-                    firebase.auth().onAuthStateChanged((user) => {
+                    onAuthStateChanged(auth, (user) => {
                         if (user) {
                             this.user = {
                                 uid: user.uid,
@@ -174,8 +198,14 @@
                 async signIn() {
                     this.authLoading = true;
                     try {
-                        const provider = new firebase.auth.GoogleAuthProvider();
-                        await firebase.auth().signInWithPopup(provider);
+                        const { auth, signInWithPopup, GoogleAuthProvider } = window.firebaseAuth;
+                        const provider = new GoogleAuthProvider();
+                        const result = await signInWithPopup(auth, provider);
+                        
+                        // Get the ID token
+                        const token = await result.user.getIdToken();
+                        console.log('Firebase ID Token:', token);
+                        
                         this.showMessage('Signed in successfully!', 'success');
                     } catch (error) {
                         console.error('Sign in error:', error);
@@ -187,7 +217,8 @@
 
                 async signOut() {
                     try {
-                        await firebase.auth().signOut();
+                        const { auth, signOut } = window.firebaseAuth;
+                        await signOut(auth);
                         this.showMessage('Signed out successfully!', 'success');
                     } catch (error) {
                         console.error('Sign out error:', error);
@@ -197,7 +228,8 @@
 
                 async saveToken() {
                     if (this.user) {
-                        const token = await firebase.auth().currentUser.getIdToken();
+                        const { auth } = window.firebaseAuth;
+                        const token = await auth.currentUser.getIdToken();
                         // Store token in localStorage for demo purposes
                         localStorage.setItem('firebase_token', token);
                     }
@@ -239,7 +271,8 @@
 
                 async testMe() {
                     try {
-                        const token = await firebase.auth().currentUser.getIdToken();
+                        const { auth } = window.firebaseAuth;
+                        const token = await auth.currentUser.getIdToken();
                         const response = await fetch('/auth/me', {
                             headers: {
                                 'Authorization': `Bearer ${token}`

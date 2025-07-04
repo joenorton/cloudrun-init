@@ -5,7 +5,7 @@ A modern Flask-based web application skeleton for Google Cloud Run, inspired by 
 ## 🚀 Features
 
 - **Flask 3.x** with factory pattern and blueprint architecture
-- **Firebase Authentication** with JWT token verification
+- **Firebase Authentication** with modern modular SDK (v9+) and JWT token verification
 - **Google Cloud NDB** for data persistence
 - **HTMX + Alpine.js** for modern, lightweight frontend
 - **Tailwind CSS** for styling
