@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudrun-init</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    
+    <style>
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="app()" class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Cloudrun-init</h1>
+            <p class="text-gray-600">Modern Flask app skeleton for Google Cloud Run</p>
+        </header>
+
+        <!-- Auth Status -->
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Authentication Status</h2>
+            
+            <!-- Loading State -->
+            <div x-show="loading" class="text-center py-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-2 text-gray-600">Loading...</p>
+            </div>
+
+            <!-- Not Authenticated -->
+            <div x-show="!loading && !user" class="text-center">
+                <p class="text-gray-600 mb-4">You are not logged in</p>
+                <button 
+                    @click="signIn()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    :disabled="authLoading"
+                >
+                    <span x-show="!authLoading">Sign In with Google</span>
+                    <span x-show="authLoading">Signing in...</span>
+                </button>
+            </div>
+
+            <!-- Authenticated -->
+            <div x-show="!loading && user" class="space-y-4">
+                <div class="flex items-center space-x-3">
+                    <img 
+                        x-show="user.picture" 
+                        :src="user.picture" 
+                        :alt="user.name || user.email"
+                        class="w-10 h-10 rounded-full"
+                    >
+                    <div>
+                        <p class="font-medium" x-text="user.name || user.email"></p>
+                        <p class="text-sm text-gray-500" x-text="user.email"></p>
+                    </div>
+                </div>
+                <button 
+                    @click="signOut()" 
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                    Sign Out
+                </button>
+            </div>
+        </div>
+
+        <!-- API Test Section -->
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">API Test</h2>
+            
+            <div class="space-y-4">
+                <button 
+                    @click="testHealth()" 
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                    Test /health
+                </button>
+                
+                <button 
+                    @click="testVersion()" 
+                    class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                    Test /version
+                </button>
+                
+                <button 
+                    @click="testMe()" 
+                    x-show="user"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                    Test /auth/me
+                </button>
+            </div>
+
+            <!-- API Response -->
+            <div x-show="apiResponse" class="mt-4 p-3 bg-gray-100 rounded-lg">
+                <h3 class="font-medium mb-2">Response:</h3>
+                <pre class="text-sm overflow-auto" x-text="JSON.stringify(apiResponse, null, 2)"></pre>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div x-show="message" class="fixed top-4 right-4 max-w-sm">
+            <div 
+                :class="messageType === 'error' ? 'bg-red-500' : 'bg-green-500'"
+                class="text-white px-4 py-2 rounded-lg shadow-lg"
+                x-text="message"
+            ></div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                user: null,
+                loading: true,
+                authLoading: false,
+                apiResponse: null,
+                message: '',
+                messageType: 'success',
+
+                init() {
+                    this.initFirebase();
+                    this.checkAuthStatus();
+                },
+
+                initFirebase() {
+                    // Firebase configuration - replace with your project config
+                    const firebaseConfig = {
+                        apiKey: "your-api-key",
+                        authDomain: "your-project.firebaseapp.com",
+                        projectId: "your-project-id",
+                        storageBucket: "your-project.appspot.com",
+                        messagingSenderId: "123456789",
+                        appId: "your-app-id"
+                    };
+
+                    // Initialize Firebase
+                    firebase.initializeApp(firebaseConfig);
+
+                    // Listen for auth state changes
+                    firebase.auth().onAuthStateChanged((user) => {
+                        if (user) {
+                            this.user = {
+                                uid: user.uid,
+                                email: user.email,
+                                name: user.displayName,
+                                picture: user.photoURL,
+                                emailVerified: user.emailVerified
+                            };
+                            this.saveToken();
+                        } else {
+                            this.user = null;
+                        }
+                        this.loading = false;
+                    });
+                },
+
+                async signIn() {
+                    this.authLoading = true;
+                    try {
+                        const provider = new firebase.auth.GoogleAuthProvider();
+                        await firebase.auth().signInWithPopup(provider);
+                        this.showMessage('Signed in successfully!', 'success');
+                    } catch (error) {
+                        console.error('Sign in error:', error);
+                        this.showMessage('Sign in failed: ' + error.message, 'error');
+                    } finally {
+                        this.authLoading = false;
+                    }
+                },
+
+                async signOut() {
+                    try {
+                        await firebase.auth().signOut();
+                        this.showMessage('Signed out successfully!', 'success');
+                    } catch (error) {
+                        console.error('Sign out error:', error);
+                        this.showMessage('Sign out failed: ' + error.message, 'error');
+                    }
+                },
+
+                async saveToken() {
+                    if (this.user) {
+                        const token = await firebase.auth().currentUser.getIdToken();
+                        // Store token in localStorage for demo purposes
+                        localStorage.setItem('firebase_token', token);
+                    }
+                },
+
+                async checkAuthStatus() {
+                    try {
+                        const response = await fetch('/auth/status');
+                        const data = await response.json();
+                        this.apiResponse = data;
+                    } catch (error) {
+                        console.error('Auth status check failed:', error);
+                    }
+                },
+
+                async testHealth() {
+                    try {
+                        const response = await fetch('/health');
+                        const data = await response.json();
+                        this.apiResponse = data;
+                        this.showMessage('Health check successful!', 'success');
+                    } catch (error) {
+                        this.apiResponse = { error: error.message };
+                        this.showMessage('Health check failed!', 'error');
+                    }
+                },
+
+                async testVersion() {
+                    try {
+                        const response = await fetch('/version');
+                        const data = await response.json();
+                        this.apiResponse = data;
+                        this.showMessage('Version check successful!', 'success');
+                    } catch (error) {
+                        this.apiResponse = { error: error.message };
+                        this.showMessage('Version check failed!', 'error');
+                    }
+                },
+
+                async testMe() {
+                    try {
+                        const token = await firebase.auth().currentUser.getIdToken();
+                        const response = await fetch('/auth/me', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        const data = await response.json();
+                        this.apiResponse = data;
+                        this.showMessage('Me endpoint test successful!', 'success');
+                    } catch (error) {
+                        this.apiResponse = { error: error.message };
+                        this.showMessage('Me endpoint test failed!', 'error');
+                    }
+                },
+
+                showMessage(text, type = 'success') {
+                    this.message = text;
+                    this.messageType = type;
+                    setTimeout(() => {
+                        this.message = '';
+                    }, 3000);
+                }
+            }
+        }
+    </script>
+</body>
+</html> 
