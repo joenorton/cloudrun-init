@@ -8,6 +8,7 @@ from google.cloud import ndb
 
 # Import blueprints
 from app.routes import auth_bp
+from app.routes.profile import profile_bp
 
 def create_app(test_config=None):
     """Application factory pattern for Flask app."""
@@ -34,22 +35,24 @@ def create_app(test_config=None):
     # Initialize CORS
     CORS(app, origins=['http://localhost:3000', 'http://localhost:5000'])
 
-    # Initialize NDB client (optional for local development)
+    # Initialize NDB client
     try:
-        if app.config.get('GOOGLE_CLOUD_PROJECT'):
-            ndb_client = ndb.Client(project=app.config['GOOGLE_CLOUD_PROJECT'])
-            ndb_client.context().activate()
-        else:
-            # For local development without GCP project
-            ndb_client = ndb.Client()
-            ndb_client.context().activate()
+        from app.ndb_client import init_ndb_client
+        ndb_client = init_ndb_client()
+        ndb_client.context().activate()
+        app.logger.info("NDB client initialized successfully")
     except Exception as e:
         # Log the error but don't fail the app startup
         app.logger.warning(f"NDB initialization failed (this is OK for local development): {e}")
-        app.logger.info("NDB will not be available. Set GOOGLE_CLOUD_PROJECT and credentials for full functionality.")
+        app.logger.info("NDB will not be available. Set DATASTORE_PROJECT_ID and DATASTORE_EMULATOR_HOST for local development.")
+        # Set a flag to indicate NDB is not available
+        app.config['NDB_AVAILABLE'] = False
+    else:
+        app.config['NDB_AVAILABLE'] = True
 
     # Register blueprints
     app.register_blueprint(auth_bp)
+    app.register_blueprint(profile_bp)
 
     # Error handlers
     @app.errorhandler(404)
@@ -72,8 +75,8 @@ def create_app(test_config=None):
     @app.route('/version')
     def version():
         return jsonify({
-            'version': '0.1.0',
-            'phase': '0.1'
+            'version': '0.2.0',
+            'phase': '0.2'
         })
 
     # Root endpoint

@@ -14,12 +14,18 @@ A modern Flask-based web application skeleton for Google Cloud Run, inspired by 
 - **Local development** with live reload
 - **Cloud Run** ready deployment
 
-## 📋 Phase 0.1 Goals (Current)
+## 📋 Phase 0.2 Goals (Current)
 
 - ✅ Flask app scaffold with factory pattern
 - ✅ Firebase authentication integration
 - ✅ Protected routes with `@login_required` decorator
 - ✅ `/me` endpoint returning current user info
+- ✅ **User persistence with `google-cloud-ndb`**
+- ✅ **User model with Firebase UID mapping**
+- ✅ **Profile endpoints for viewing/editing user data**
+- ✅ **Datastore emulator support for local development**
+- ✅ **Middleware for automatic user creation/update**
+- ✅ **Comprehensive test coverage for user functionality**
 - ✅ Basic project layout and structure
 - ✅ Minimal frontend with Firebase SDK
 - ✅ Local development support
@@ -32,19 +38,26 @@ cloudrun-init/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # Flask factory + gunicorn entrypoint
-│   │   └── __init__.py
 │   ├── auth/
 │   │   ├── __init__.py
-│   │   └── firebase.py      # Firebase auth utilities
+│   │   ├── firebase.py      # Firebase auth utilities
+│   │   └── user_middleware.py # User persistence middleware
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── user.py          # User model with NDB
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   └── auth.py          # Authentication routes
+│   │   ├── auth.py          # Authentication routes
+│   │   └── profile.py       # Profile management routes
+│   ├── ndb_client.py        # NDB client configuration
 │   └── static/
 │       └── index.html       # Main frontend page
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py          # Pytest configuration
-│   └── test_auth.py         # Authentication tests
+│   ├── test_auth.py         # Authentication tests
+│   ├── test_user_model.py   # User model tests
+│   └── test_profile_routes.py # Profile routes tests
 ├── Dockerfile               # Multi-stage Docker build
 ├── Makefile                 # Development commands
 ├── requirements.txt         # Python dependencies
@@ -82,7 +95,11 @@ cloudrun-init/
 
 4. **Run the development server**
    ```bash
+   # For basic development (without database)
    make dev
+   
+   # For development with Datastore emulator
+   make dev-db
    ```
 
 5. **Open your browser**
@@ -172,6 +189,10 @@ const firebaseConfig = {
 ### Protected Endpoints
 
 - `GET /auth/me` - Get current user information (requires authentication)
+- `GET /profile/` - Get current user's profile (requires authentication)
+- `PUT /profile/` - Update user's profile (requires authentication)
+- `GET /profile/stats` - Get user statistics (requires authentication)
+- `POST /profile/sync` - Sync profile with Firebase data (requires authentication)
 
 ## 🔧 Environment Variables
 
@@ -182,10 +203,81 @@ const firebaseConfig = {
 | `GOOGLE_CLOUD_PROJECT` | Google Cloud project ID | No (for local dev) |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | Path to Firebase service account JSON | No (uses default credentials) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud service account JSON | No |
+| `DATASTORE_PROJECT_ID` | Google Cloud project ID for Datastore | No (uses GOOGLE_CLOUD_PROJECT) |
+| `DATASTORE_EMULATOR_HOST` | Datastore emulator host (e.g., localhost:8081) | No (for local development) |
+
+## 👤 User Persistence
+
+### Overview
+
+The application now includes user persistence using Google Cloud NDB (Datastore). When a user authenticates with Firebase, their information is automatically stored in the database and can be retrieved/updated through the profile endpoints.
+
+### Features
+
+- **Automatic User Creation**: Users are created in the database on first login
+- **Profile Management**: View and update user profile information
+- **Firebase Sync**: Keep local user data in sync with Firebase
+- **Local Development**: Full functionality with Datastore emulator
+
+### User Model
+
+The `User` model includes:
+- `uid`: Firebase user ID (unique identifier)
+- `email`: User's email address
+- `display_name`: User's display name
+- `created_at`: Account creation timestamp
+- `updated_at`: Last update timestamp
+- `email_verified`: Email verification status
+- `picture`: Profile picture URL
+- `provider_id`: OAuth provider used
+
+### Local Development with Datastore
+
+1. **Start the Datastore emulator**
+   ```bash
+   make emulator
+   ```
+   
+   > **Note**: If you get an error about invalid choice 'datastore', try:
+   > ```bash
+   > gcloud beta emulators datastore start --host-port=localhost:8081 --project=fake-project
+   > ```
+
+2. **Run the app with emulator support**
+   ```bash
+   make dev-db
+   ```
+
+3. **Test the functionality**
+   ```bash
+   python test_user_persistence.py
+   ```
+
+### API Usage
+
+```bash
+# Get user profile
+curl -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+     http://localhost:5000/profile/
+
+# Update display name
+curl -X PUT \
+     -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"display_name": "New Name"}' \
+     http://localhost:5000/profile/
+
+# Get user statistics
+curl -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+     http://localhost:5000/profile/stats
+
+# Sync with Firebase data
+curl -X POST \
+     -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+     http://localhost:5000/profile/sync
+```
 
 ## 🚀 Deployment
-
-### Cloud Run Deployment
 
 1. **Build and push to Container Registry**
    ```bash

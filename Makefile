@@ -6,17 +6,35 @@
 help:
 	@echo "Available targets:"
 	@echo "  dev          - Run Flask app locally with live reload"
+	@echo "  dev-db       - Run Flask app with Datastore emulator"
 	@echo "  test         - Run pytest"
 	@echo "  lint         - Run flake8 linting"
 	@echo "  clean        - Clean up Python cache files"
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-run   - Run Docker container locally"
 	@echo "  deploy       - Deploy to Cloud Run (requires gcloud setup)"
+	@echo "  emulator     - Start Datastore emulator"
 
 # Development
 dev:
 	@echo "Starting Flask development server..."
 	@python -m flask --app app.main:app run --debug --host=0.0.0.0 --port=5000
+
+# Development with Datastore emulator
+dev-db:
+	@echo "Starting Flask development server with Datastore emulator..."
+	@DATASTORE_EMULATOR_HOST=localhost:8081 DATASTORE_PROJECT_ID=fake-project python -m flask --app app.main:app run --debug --host=0.0.0.0 --port=5000
+
+# Start Datastore emulator
+emulator:
+	@echo "Starting Datastore emulator..."
+	@echo "Note: This requires gcloud CLI with beta components installed."
+	@if ! gcloud beta emulators datastore --help > /dev/null 2>&1; then \
+		echo "Error: gcloud beta emulators datastore not available."; \
+		echo "Install beta components with: gcloud components install beta"; \
+		exit 1; \
+	fi
+	@gcloud beta emulators datastore start --host-port=localhost:8081 --project=fake-project
 
 # Testing
 test:
